@@ -28,11 +28,15 @@ pub fn panic(mesg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn 
 }
 ///Used because if @trap is called, printer_worker.js would not print/empty the buffer sometimes.
 fn print_before_trap() void {
-    while (@atomicRmw(PBLock, &PrintBufferLock, .Xchg, .locked, .acq_rel) == .locked) {}
+    var exit_early: usize = 0;
+    while (@atomicRmw(PBLock, &PrintBufferLock, .Xchg, .locked, .acq_rel) == .locked) : (exit_early += 1) {
+        if (exit_early == 1000000) return;
+    }
     PrintBufferLock = .unlocked;
     _ = wasm_asm.atomic_notify32(PBLock, &PrintBufferLock, -1);
-    while (@atomicLoad(PBStatus, &PrintBufferStatus, .acquire) != .empty) {
+    while (@atomicLoad(PBStatus, &PrintBufferStatus, .acquire) != .empty) : (exit_early += 1) {
         _ = wasm_asm.atomic_notify32(PBStatus, &PrintBufferStatus, -1);
+        if (exit_early == 1000000) return;
     }
 }
 export fn PrintBufferMax() usize {
