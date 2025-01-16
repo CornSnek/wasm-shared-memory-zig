@@ -6,7 +6,7 @@ let printer_worker = null;
 window.addEventListener("load", async () => {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./coi-serviceworker.js', { scope: '/' });
+      await navigator.serviceWorker.register('./coi-serviceworker.js', { scope: '/wasm-shared-memory-zig/' });
       console.log('COI service worker registered and active');
     } catch (err) {
       console.error('Failed to register COI service worker:', err);
