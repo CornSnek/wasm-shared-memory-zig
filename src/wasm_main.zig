@@ -5,6 +5,7 @@ const logger = @import("logger.zig");
 pub const allocator = std.heap.wasm_allocator;
 pub const std_options: std.Options = .{
     .logFn = logger.std_options_impl.logFn,
+    .log_level = .debug,
 };
 pub const panic = wasm_print.panic;
 comptime {
@@ -25,7 +26,7 @@ fn a() !void {
         }
     }
     std.log.info("E" ** 8192, .{}); //Intentional message to fill buffer too quickly.
-    @panic("Panic message");
+    return error.ErrorMessage;
 }
 pub export fn Hello() u32 {
     a() catch |e| wasm_print.WasmError(e);

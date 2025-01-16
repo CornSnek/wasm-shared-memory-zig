@@ -5,9 +5,35 @@ const wasm_asm = @import("wasm_asm.zig");
 pub const PrintType = shared_enums.PrintType;
 pub const PBLock = shared_enums.PBLock;
 pub const PBStatus = shared_enums.PBStatus;
+//Print panic non-asynchronously
+pub extern fn JSPanic(buf_addr: [*c]const u8, usize) void;
 pub fn panic(mesg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
-    std.log.err("A wasm module has panicked. Panic message:\n{s}\n", .{mesg});
+    var ebi: usize = 0;
+    var error_buffer: [512]u8 = undefined;
+    for ("A wasm module has panicked. Panic message:\n'") |ch| {
+        error_buffer[ebi] = ch;
+        ebi += 1;
+    }
+    for (0..mesg.len) |i| {
+        error_buffer[ebi] = mesg[i];
+        ebi += 1;
+    }
+    for ("'\n") |ch| {
+        error_buffer[ebi] = ch;
+        ebi += 1;
+    }
+    print_before_trap();
+    JSPanic(&error_buffer, ebi);
     @trap();
+}
+///Used because if @trap is called, printer_worker.js would not print/empty the buffer sometimes.
+fn print_before_trap() void {
+    while (@atomicRmw(PBLock, &PrintBufferLock, .Xchg, .locked, .acq_rel) == .locked) {}
+    PrintBufferLock = .unlocked;
+    _ = wasm_asm.atomic_notify32(PBLock, &PrintBufferLock, -1);
+    while (@atomicLoad(PBStatus, &PrintBufferStatus, .acquire) != .empty) {
+        _ = wasm_asm.atomic_notify32(PBStatus, &PrintBufferStatus, -1);
+    }
 }
 export fn PrintBufferMax() usize {
     return 8192;
@@ -109,6 +135,21 @@ const WasmPrinter = struct {
     }
 };
 pub fn WasmError(err: anyerror) noreturn {
-    std.log.err("A Wasm module has an uncaught error: '{s}'", .{@errorName(err)});
+    var ebi: usize = 0;
+    var error_buffer: [512]u8 = undefined;
+    for ("A Wasm module has an uncaught error:\n'") |ch| {
+        error_buffer[ebi] = ch;
+        ebi += 1;
+    }
+    for (0..@errorName(err).len) |i| {
+        error_buffer[ebi] = @errorName(err)[i];
+        ebi += 1;
+    }
+    for ("'\n") |ch| {
+        error_buffer[ebi] = ch;
+        ebi += 1;
+    }
+    print_before_trap();
+    JSPanic(&error_buffer, ebi);
     @trap();
 }

@@ -21,7 +21,7 @@ window.addEventListener("load", async () => {
   }
   init_shared_buffer();
   await WebAssembly.instantiateStreaming(fetch("./todo.wasm"), {
-    env: { memory }
+    env: { memory, JSPanic:()=>{} }
   }).then(result => {
     WasmObj = result;
   });
